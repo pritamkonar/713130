@@ -185,16 +185,22 @@ def create_pdf(df, school, name, year, rate, totals, final_bal):
     pdf.add_page()
     
     pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 8, f"SCHOOL NAME :- {school}", 0, 1, 'C')
+    # Using MultiCell for School Name in case it is long, so it doesn't touch the next line
+    pdf.multi_cell(0, 8, f"SCHOOL NAME :- {school}", 0, 'C')
     
-    # FIXED: Reduced font size to 10 to prevent line breaking
-    pdf.set_font('Arial', 'B', 10)
+    # Reduced font size to 9 to prevent wrapping/breaking
+    pdf.set_font('Arial', 'B', 9) 
     pdf.cell(0, 8, f"INTEREST CALCULATION OF PROVIDENT FUND ACCOUNT FOR THE YEAR - {year}-{year+1}", 0, 1, 'C')
+    
+    # Added Extra Space (ln(5)) so this line doesn't touch the one above
+    pdf.ln(2) 
     
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(140, 8, f"NAME :- {name}", 0, 0, 'L')
     pdf.cell(0, 8, f"RATE OF INTEREST:- {rate} %", 0, 1, 'R')
-    pdf.ln(2)
+    
+    # Extra space before table
+    pdf.ln(5) 
 
     w = {"mo": 26, "op": 26, "d1": 24, "p1": 24, "d2": 24, "p2": 24, "wi": 22, "lo": 26, "in": 20, "cl": 26, "re": 30}
 
