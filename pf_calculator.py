@@ -136,7 +136,6 @@ result_df, totals, final_principal = calculate_ledger(opening_balance_input, edi
 st.divider()
 st.subheader("Calculation Result")
 
-# Display logic (simplified for UI)
 display_df = result_df.copy()
 total_row = pd.DataFrame([{
     "Month": "TOTAL",
@@ -154,7 +153,7 @@ total_row = pd.DataFrame([{
 display_df = pd.concat([display_df, total_row], ignore_index=True)
 st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-# --- PDF GENERATION (EXACT MATCH) ---
+# --- PDF GENERATION (Centered & Fixed Box) ---
 def create_exact_pdf(df, school, name, year, rate, totals, final_bal):
     # A4 Landscape: 297mm width. 
     # Margins 10mm L/R -> 277mm usable width.
@@ -162,7 +161,7 @@ def create_exact_pdf(df, school, name, year, rate, totals, final_bal):
     pdf.set_margins(10, 10, 10)
     pdf.add_page()
     
-    # --- 1. Headers ---
+    # --- 1. Top Headers ---
     pdf.set_font('Arial', 'B', 14)
     pdf.cell(0, 8, f"SCHOOL NAME :- {school}", 0, 1, 'C')
     
@@ -170,148 +169,161 @@ def create_exact_pdf(df, school, name, year, rate, totals, final_bal):
     pdf.cell(0, 8, f"INTEREST CALCULATION OF PROVIDENT FUND ACCOUNT FOR THE YEAR - {year}-{year+1}", 0, 1, 'C')
     
     pdf.set_font('Arial', 'B', 10)
-    # Name (Left) and Rate (Right)
-    # Using a borderless cell trick to align them on the same line
+    # Name and Rate
     pdf.cell(140, 8, f"NAME :- {name}", 0, 0, 'L')
     pdf.cell(0, 8, f"RATE OF INTEREST:- {rate} %", 0, 1, 'R')
     pdf.ln(2)
 
-    # --- 2. Table Column Widths (Total must be <= 277) ---
-    # Width Calculation:
-    # Month(26) + Op(26) + D1(22)+P1(22) + D2(22)+P2(22) + W(22) + Low(26) + Int(20) + Close(26) + Rem(30)
-    # Total = 264mm (Fits comfortably within 277mm)
+    # --- 2. Table Column Widths ---
+    # Total Usable: 277mm.
+    # Recalculated for better fit
     w = {
         "mo": 26, "op": 26, 
-        "d1": 22, "p1": 22, 
-        "d2": 22, "p2": 22, 
+        "d1": 24, "p1": 24,  # Increased slightly
+        "d2": 24, "p2": 24,  # Increased slightly
         "wi": 22, "lo": 26, 
         "in": 20, "cl": 26, 
         "re": 30
     }
+    # Sum check: 26+26+48+48+22+26+20+26+30 = 272mm (Fits in 277mm)
 
     pdf.set_font('Arial', 'B', 8)
-    # Store starting X and Y
     x = pdf.get_x()
     y = pdf.get_y()
     
-    # --- 3. Table Header (Merged Cells Logic) ---
-    # Row Height = 12mm total. 
-    # Single headers take full 12mm. Split headers take 6mm + 6mm.
+    # --- 3. Complex Header Construction ---
+    # Height: 12mm total.
     
     # 1. Month
     pdf.rect(x, y, w['mo'], 12)
-    pdf.text(x+2, y+7, "Month")
+    # Centered text in box
+    pdf.set_xy(x, y+4) 
+    pdf.cell(w['mo'], 4, "Month", 0, 0, 'C')
     
     # 2. Opening Balance
     pdf.rect(x+w['mo'], y, w['op'], 12)
-    pdf.text(x+w['mo']+2, y+7, "Opening Balance")
+    pdf.set_xy(x+w['mo'], y+4)
+    pdf.cell(w['op'], 4, "Opening Balance", 0, 0, 'C')
     
-    # 3. Group: Deposit up to 15th (Dep + PFLR)
+    # 3. Group: Deposit up to 15th
     grp1_x = x + w['mo'] + w['op']
     pdf.rect(grp1_x, y, w['d1']+w['p1'], 6) # Top box
-    pdf.text(grp1_x+5, y+4, "Deposit up to 15th day")
+    pdf.set_xy(grp1_x, y+1)
+    pdf.cell(w['d1']+w['p1'], 4, "Deposit up to 15th day", 0, 0, 'C')
+    
     # Sub-columns
     pdf.rect(grp1_x, y+6, w['d1'], 6)
-    pdf.text(grp1_x+2, y+10, "Deposit")
+    pdf.set_xy(grp1_x, y+7)
+    pdf.cell(w['d1'], 4, "Deposit", 0, 0, 'C')
+    
     pdf.rect(grp1_x+w['d1'], y+6, w['p1'], 6)
-    pdf.text(grp1_x+w['d1']+2, y+10, "P.F.L.R")
+    pdf.set_xy(grp1_x+w['d1'], y+7)
+    pdf.cell(w['p1'], 4, "P.F.L.R", 0, 0, 'C')
 
-    # 4. Group: Deposit 16th to Last (Dep + PFLR)
+    # 4. Group: Deposit 16th to Last (Multicell for long text)
     grp2_x = grp1_x + w['d1'] + w['p1']
-    pdf.rect(grp2_x, y, w['d2']+w['p2'], 6) # Top box
-    pdf.text(grp2_x+2, y+4, "Deposit between 16th & last day")
+    grp2_w = w['d2'] + w['p2']
+    pdf.rect(grp2_x, y, grp2_w, 6) # Top box
+    
+    # Using MultiCell to handle "Deposit between 16th & last day"
+    pdf.set_xy(grp2_x, y) 
+    # Force centering by position logic or MultiCell align
+    pdf.multi_cell(grp2_w, 3, "Deposit between\n16th & last day", 0, 'C')
+    
     # Sub-columns
     pdf.rect(grp2_x, y+6, w['d2'], 6)
-    pdf.text(grp2_x+2, y+10, "Deposit")
+    pdf.set_xy(grp2_x, y+7)
+    pdf.cell(w['d2'], 4, "Deposit", 0, 0, 'C')
+    
     pdf.rect(grp2_x+w['d2'], y+6, w['p2'], 6)
-    pdf.text(grp2_x+w['d2']+2, y+10, "P.F.L.R")
+    pdf.set_xy(grp2_x+w['d2'], y+7)
+    pdf.cell(w['p2'], 4, "P.F.L.R", 0, 0, 'C')
 
     # 5. Withdrawal
     curr_x = grp2_x + w['d2'] + w['p2']
     pdf.rect(curr_x, y, w['wi'], 12)
-    pdf.text(curr_x+2, y+7, "Withdrawal")
+    pdf.set_xy(curr_x, y+4)
+    pdf.cell(w['wi'], 4, "Withdrawal", 0, 0, 'C')
 
     # 6. Lowest Balance
     curr_x += w['wi']
     pdf.rect(curr_x, y, w['lo'], 12)
-    pdf.text(curr_x+2, y+7, "Lowest Balance")
+    pdf.set_xy(curr_x, y+4)
+    pdf.cell(w['lo'], 4, "Lowest Balance", 0, 0, 'C')
 
     # 7. Interest
     curr_x += w['lo']
     pdf.rect(curr_x, y, w['in'], 12)
-    pdf.set_xy(curr_x, y) 
-    # Multicell for Interest title to wrap if needed, or manual placement
-    pdf.text(curr_x+1, y+5, "Interest for")
-    pdf.text(curr_x+1, y+8, "the month")
+    pdf.set_xy(curr_x, y+2)
+    pdf.multi_cell(w['in'], 4, "Interest\nfor month", 0, 'C')
 
     # 8. Closing Balance
     curr_x += w['in']
     pdf.rect(curr_x, y, w['cl'], 12)
-    pdf.text(curr_x+2, y+7, "Closing Balance")
+    pdf.set_xy(curr_x, y+4)
+    pdf.cell(w['cl'], 4, "Closing Balance", 0, 0, 'C')
 
     # 9. Remarks
     curr_x += w['cl']
     pdf.rect(curr_x, y, w['re'], 12)
-    pdf.text(curr_x+2, y+7, "Remarks")
+    pdf.set_xy(curr_x, y+4)
+    pdf.cell(w['re'], 4, "Remarks", 0, 0, 'C')
 
     # Move cursor down after header
     pdf.set_xy(x, y + 12)
 
-    # --- 4. Table Body ---
-    pdf.set_font('Arial', '', 9) # Increased font size slightly for readability
+    # --- 4. Table Body (ALL CENTER ALIGNED) ---
+    pdf.set_font('Arial', '', 9) 
     row_h = 8
 
+    # Helper for cells
+    def cell_c(w, txt, border=1):
+        pdf.cell(w, row_h, str(txt), border, 0, 'C') # 'C' is key here
+
     for index, row in df.iterrows():
-        pdf.cell(w['mo'], row_h, str(row['Month']), 1, 0, 'L')
-        pdf.cell(w['op'], row_h, f"{row['Opening Balance']:.2f}", 1, 0, 'R')
-        pdf.cell(w['d1'], row_h, f"{row['Dep (<15th)']:.2f}", 1, 0, 'R')
-        pdf.cell(w['p1'], row_h, f"{row['PFLR (<15th)']:.2f}", 1, 0, 'R')
-        pdf.cell(w['d2'], row_h, f"{row['Dep (>15th)']:.2f}", 1, 0, 'R')
-        pdf.cell(w['p2'], row_h, f"{row['PFLR (>15th)']:.2f}", 1, 0, 'R')
-        pdf.cell(w['wi'], row_h, f"{row['Withdrawal']:.2f}", 1, 0, 'R')
-        pdf.cell(w['lo'], row_h, f"{row['Lowest Balance']:.2f}", 1, 0, 'R')
-        pdf.cell(w['in'], row_h, f"{row['Interest']:.2f}", 1, 0, 'R')
-        pdf.cell(w['cl'], row_h, f"{row['Closing Balance']:.2f}", 1, 0, 'R')
-        pdf.cell(w['re'], row_h, str(row['Remarks']), 1, 1, 'L')
+        cell_c(w['mo'], row['Month'])
+        cell_c(w['op'], f"{row['Opening Balance']:.2f}")
+        cell_c(w['d1'], f"{row['Dep (<15th)']:.2f}")
+        cell_c(w['p1'], f"{row['PFLR (<15th)']:.2f}")
+        cell_c(w['d2'], f"{row['Dep (>15th)']:.2f}")
+        cell_c(w['p2'], f"{row['PFLR (>15th)']:.2f}")
+        cell_c(w['wi'], f"{row['Withdrawal']:.2f}")
+        cell_c(w['lo'], f"{row['Lowest Balance']:.2f}")
+        cell_c(w['in'], f"{row['Interest']:.2f}")
+        cell_c(w['cl'], f"{row['Closing Balance']:.2f}")
+        cell_c(w['re'], row['Remarks'])
+        pdf.ln()
 
-    # --- 5. Total Row ---
+    # --- 5. Total Row (CENTER ALIGNED) ---
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(w['mo'], row_h, "Total", 1, 0, 'C')
-    pdf.cell(w['op'], row_h, "", 1, 0, 'C')
-    pdf.cell(w['d1'], row_h, f"{totals['Dep (<15th)']:.2f}", 1, 0, 'R')
-    pdf.cell(w['p1'], row_h, f"{totals['PFLR (<15th)']:.2f}", 1, 0, 'R')
-    pdf.cell(w['d2'], row_h, f"{totals['Dep (>15th)']:.2f}", 1, 0, 'R')
-    pdf.cell(w['p2'], row_h, f"{totals['PFLR (>15th)']:.2f}", 1, 0, 'R')
-    pdf.cell(w['wi'], row_h, f"{totals['Withdrawal']:.2f}", 1, 0, 'R')
-    pdf.cell(w['lo'], row_h, "", 1, 0, 'C')
-    pdf.cell(w['in'], row_h, f"{totals['Interest']:.2f}", 1, 0, 'R')
-    pdf.cell(w['cl'], row_h, "", 1, 0, 'C')
-    pdf.cell(w['re'], row_h, "", 1, 1, 'C')
+    cell_c(w['mo'], "Total")
+    cell_c(w['op'], "")
+    cell_c(w['d1'], f"{totals['Dep (<15th)']:.2f}")
+    cell_c(w['p1'], f"{totals['PFLR (<15th)']:.2f}")
+    cell_c(w['d2'], f"{totals['Dep (>15th)']:.2f}")
+    cell_c(w['p2'], f"{totals['PFLR (>15th)']:.2f}")
+    cell_c(w['wi'], f"{totals['Withdrawal']:.2f}")
+    cell_c(w['lo'], "")
+    cell_c(w['in'], f"{totals['Interest']:.2f}")
+    cell_c(w['cl'], "")
+    cell_c(w['re'], "")
+    pdf.ln(12)
 
-    # --- 6. Footer Summary (Bottom Left & Right) ---
+    # --- 6. Footer ---
     pdf.ln(5)
-    
-    # Calculate Final Total
     total_balance = final_bal + totals['Interest']
 
-    # We use cells to align the Summary block
     pdf.set_font('Arial', '', 10)
-    
-    # Row 1: Principal
     pdf.cell(30, 6, "Principal", 0, 0)
-    pdf.cell(30, 6, f"{final_bal:.2f}", 0, 1)
+    pdf.cell(30, 6, f": {final_bal:.2f}", 0, 1)
     
-    # Row 2: Interest
     pdf.cell(30, 6, "Interest", 0, 0)
-    pdf.cell(30, 6, f"{totals['Interest']:.2f}", 0, 1)
+    pdf.cell(30, 6, f": {totals['Interest']:.2f}", 0, 1)
     
-    # Row 3: Total (Bold)
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(30, 6, "TOTAL", 0, 0)
-    pdf.cell(30, 6, f"{total_balance:.2f}", 0, 0) # No line break here yet
+    pdf.cell(30, 6, f": {total_balance:.2f}", 0, 0)
     
-    # Signature (Right aligned relative to page)
-    # Move cursor to right side for signature
     pdf.set_x(230) 
     pdf.cell(40, 6, "Signature of HM", 0, 1, 'C')
 
