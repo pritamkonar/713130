@@ -16,30 +16,26 @@ st.markdown("""
     .summary-box {
         background-color: #f9f9f9;
         padding: 15px;
-        border-radius: 10px 10px 0px 0px; /* Rounded top, flat bottom */
+        border-radius: 10px;
         border: 1px solid #ddd;
-        border-bottom: none; /* Connect to button area */
         text-align: center;
+        margin-bottom: 10px;
     }
     
     .total-box {
         background-color: #e6ffe6;
         padding: 15px;
-        border-radius: 10px 10px 0px 0px;
+        border-radius: 10px;
         border: 1px solid #b3ffb3;
-        border-bottom: none;
         text-align: center;
-    }
-
-    /* Remove gap between summary and buttons */
-    div[data-testid="column"] > div > div > div > div.stButton {
-        margin-top: -15px;
+        margin-bottom: 10px;
     }
     
+    /* Button Styling to make them wide and clear */
     .stButton button {
         width: 100%;
-        border-radius: 0px 0px 10px 10px; /* Rounded bottom to match summary */
         font-weight: bold;
+        height: 50px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -187,9 +183,6 @@ def create_pdf(df, school, name, year, rate, totals, final_bal):
     pdf = FPDF('L', 'mm', 'A4')
     pdf.set_margins(10, 10, 10)
     pdf.add_page()
-    
-    # Note: Standard FPDF doesn't support 'Calibri' without the .ttf file.
-    # Using 'Arial' which is the standard sans-serif equivalent.
     
     pdf.set_font('Arial', 'B', 14)
     pdf.cell(0, 8, f"SCHOOL NAME :- {school}", 0, 1, 'C')
@@ -389,15 +382,12 @@ def create_excel(df, school, name, year, rate, totals, final_bal):
     workbook.close()
     return output.getvalue()
 
-# --- SUMMARY & DOWNLOAD SECTION (Unified Layout) ---
+# --- SUMMARY SECTION ---
 final_total_balance = final_principal + totals['Interest']
 
 st.markdown("### Final Summary")
-
-# Create 3 columns for Summary + Buttons stacked
 col_s1, col_s2, col_s3 = st.columns(3)
 
-# Column 1: Principal
 with col_s1:
     st.markdown(f"""
     <div class="summary-box">
@@ -406,7 +396,6 @@ with col_s1:
     </div>
     """, unsafe_allow_html=True)
 
-# Column 2: Interest + PDF Button
 with col_s2:
     st.markdown(f"""
     <div class="summary-box">
@@ -414,11 +403,7 @@ with col_s2:
         <div style="font-size:22px;">₹ {totals['Interest']:,.2f}</div>
     </div>
     """, unsafe_allow_html=True)
-    
-    pdf_bytes = create_pdf(result_df, school_name, employee_name, start_year, rate_input, totals, final_principal)
-    st.download_button("📄 PDF", pdf_bytes, f"PF_{start_year}.pdf", 'application/pdf', use_container_width=True)
 
-# Column 3: Total + Excel Button
 with col_s3:
     st.markdown(f"""
     <div class="total-box">
@@ -426,6 +411,15 @@ with col_s3:
         <div style="font-size:22px; color:#005500;">₹ {final_total_balance:,.2f}</div>
     </div>
     """, unsafe_allow_html=True)
-    
-    excel_bytes = create_excel(result_df, school_name, employee_name, start_year, rate_input, totals, final_principal)
-    st.download_button("📊 Excel", excel_bytes, f"PF_{start_year}.xlsx", 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+
+# --- DOWNLOAD BUTTONS (Centered Below Summary) ---
+st.write("") # Spacer
+col_d1, col_d2 = st.columns(2)
+
+pdf_bytes = create_pdf(result_df, school_name, employee_name, start_year, rate_input, totals, final_principal)
+with col_d1:
+    st.download_button("📄 Download PDF", pdf_bytes, f"PF_{start_year}.pdf", 'application/pdf', use_container_width=True)
+
+excel_bytes = create_excel(result_df, school_name, employee_name, start_year, rate_input, totals, final_principal)
+with col_d2:
+    st.download_button("📊 Download Excel", excel_bytes, f"PF_{start_year}.xlsx", 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
