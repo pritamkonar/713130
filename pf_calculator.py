@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from fpdf import FPDF
-import datetime
 
 # --- Page Configuration ---
 st.set_page_config(page_title="PF Interest Calculation", layout="wide")
@@ -15,7 +14,7 @@ st.markdown("""
 
 st.title("📄 PF Interest Calculation Sheet")
 
-# --- Inputs: Header Info (Matching Excel Header) ---
+# --- Inputs: Header Info ---
 col_h1, col_h2 = st.columns([2, 1])
 with col_h1:
     school_name = st.text_input("School Name", placeholder="Enter School Name")
@@ -43,21 +42,18 @@ months_list = get_fy_months(start_year)
 if 'input_data' not in st.session_state:
     data = {
         "Month": months_list,
-        "Dep_Before_15": [0.0] * 12,    # Excel: Deposit up to 15th -> Deposit
-        "PFLR_Before_15": [0.0] * 12,   # Excel: Deposit up to 15th -> P.F.L.R
-        "Dep_After_15": [0.0] * 12,     # Excel: Deposit 16th & last -> Deposit
-        "PFLR_After_15": [0.0] * 12,    # Excel: Deposit 16th & last -> P.F.L.R
+        "Dep_Before_15": [0.0] * 12,
+        "PFLR_Before_15": [0.0] * 12,
+        "Dep_After_15": [0.0] * 12,
+        "PFLR_After_15": [0.0] * 12,
         "Withdrawal": [0.0] * 12,
         "Remarks": [""] * 12
     }
     st.session_state.input_data = pd.DataFrame(data)
 else:
-    # Update Month labels if Year changes
     st.session_state.input_data["Month"] = months_list
 
 st.subheader("Monthly Data Entry")
-st.info("Enter amounts below. Logic: Interest is calculated on Lowest Balance (Opening + Deposits before 15th - Withdrawals).")
-
 edited_df = st.data_editor(
     st.session_state.input_data,
     column_config={
@@ -74,18 +70,14 @@ edited_df = st.data_editor(
     num_rows="fixed"
 )
 
-# --- Calculation Engine (LOGIC UNCHANGED) ---
+# --- Calculation Engine ---
 def calculate_ledger(opening_bal, input_df, rate):
     results = []
     current_bal = opening_bal
     total_interest = 0.0
 
     # For column sums
-    sum_dep_b = 0
-    sum_pflr_b = 0
-    sum_dep_a = 0
-    sum_pflr_a = 0
-    sum_with = 0
+    sum_dep_b = 0; sum_pflr_b = 0; sum_dep_a = 0; sum_pflr_a = 0; sum_with = 0
 
     for index, row in input_df.iterrows():
         month = row['Month']
@@ -96,24 +88,21 @@ def calculate_ledger(opening_bal, input_df, rate):
         withdrawal = row['Withdrawal']
         remarks = row['Remarks']
 
-        # Update Sums
         sum_dep_b += dep_before
         sum_pflr_b += pflr_before
         sum_dep_a += dep_after
         sum_pflr_a += pflr_after
         sum_with += withdrawal
 
-        # Lowest Balance Calculation
+        # Interest Logic: Lowest Balance
         effective_deposit_for_interest = dep_before + pflr_before
         lowest_bal_calc = current_bal + effective_deposit_for_interest - withdrawal
         lowest_bal = max(0, lowest_bal_calc)
 
-        # --- LOGIC: Interest Truncation ---
+        # Truncation Logic
         raw_interest = (lowest_bal * rate) / 1200
-        # Truncate to 2 decimal places (No Rounding Up)
         interest = int(raw_interest * 100) / 100.0
 
-        # Closing Balance
         closing_bal = current_bal + dep_before + dep_after + pflr_before + pflr_after - withdrawal
 
         results.append({
@@ -133,235 +122,202 @@ def calculate_ledger(opening_bal, input_df, rate):
         current_bal = closing_bal
         total_interest += interest
     
-    # Create DataFrame
     df_res = pd.DataFrame(results)
-    
-    # Store totals for footer
     totals = {
-        "Dep (<15th)": sum_dep_b,
-        "PFLR (<15th)": sum_pflr_b,
-        "Dep (>15th)": sum_dep_a,
-        "PFLR (>15th)": sum_pflr_a,
-        "Withdrawal": sum_with,
-        "Interest": total_interest
+        "Dep (<15th)": sum_dep_b, "PFLR (<15th)": sum_pflr_b,
+        "Dep (>15th)": sum_dep_a, "PFLR (>15th)": sum_pflr_a,
+        "Withdrawal": sum_with, "Interest": total_interest
     }
-
     return df_res, totals, current_bal
 
-# Perform Calculation
 result_df, totals, final_principal = calculate_ledger(opening_balance_input, edited_df, rate_input)
 
-# --- Display Results (Formatted to Match Excel) ---
+# --- Display Results ---
 st.divider()
-st.subheader(f"Interest Calculation for the Year {start_year}-{start_year+1}")
+st.subheader("Calculation Result")
 
-# Prepare Display Dataframe with Total Row
+# Display logic (simplified for UI)
 display_df = result_df.copy()
-
-# Rename columns to match Excel Visuals closely
-display_df.columns = [
-    "Month", "Opening Bal", 
-    "Deposit (Up to 15)", "PFLR (Up to 15)", 
-    "Deposit (16-End)", "PFLR (16-End)", 
-    "Withdrawal", "Lowest Bal", "Interest", "Closing Bal", "Remarks"
-]
-
-# Add Total Row
 total_row = pd.DataFrame([{
     "Month": "TOTAL",
-    "Opening Bal": None,
-    "Deposit (Up to 15)": totals["Dep (<15th)"],
-    "PFLR (Up to 15)": totals["PFLR (<15th)"],
-    "Deposit (16-End)": totals["Dep (>15th)"],
-    "PFLR (16-End)": totals["PFLR (>15th)"],
+    "Opening Balance": None,
+    "Dep (<15th)": totals["Dep (<15th)"],
+    "PFLR (<15th)": totals["PFLR (<15th)"],
+    "Dep (>15th)": totals["Dep (>15th)"],
+    "PFLR (>15th)": totals["PFLR (>15th)"],
     "Withdrawal": totals["Withdrawal"],
-    "Lowest Bal": None,
+    "Lowest Balance": None,
     "Interest": totals["Interest"],
-    "Closing Bal": None,
+    "Closing Balance": None,
     "Remarks": ""
 }])
-
 display_df = pd.concat([display_df, total_row], ignore_index=True)
+st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-st.dataframe(
-    display_df,
-    column_config={
-        "Opening Bal": st.column_config.NumberColumn(format="%.2f"),
-        "Deposit (Up to 15)": st.column_config.NumberColumn(format="%.2f"),
-        "PFLR (Up to 15)": st.column_config.NumberColumn(format="%.2f"),
-        "Deposit (16-End)": st.column_config.NumberColumn(format="%.2f"),
-        "PFLR (16-End)": st.column_config.NumberColumn(format="%.2f"),
-        "Withdrawal": st.column_config.NumberColumn(format="%.2f"),
-        "Lowest Bal": st.column_config.NumberColumn(format="%.2f"),
-        "Interest": st.column_config.NumberColumn(format="%.2f"),
-        "Closing Bal": st.column_config.NumberColumn(format="%.2f"),
-    },
-    use_container_width=True,
-    hide_index=True
-)
-
-# --- Footer Summary (Matches Excel Bottom Left) ---
-st.write("### Summary")
-col1, col2 = st.columns([1, 2])
-
-final_total_balance = final_principal + totals['Interest']
-
-with col1:
-    summary_data = {
-        "Description": ["Principal", "Interest", "TOTAL"],
-        "Amount": [final_principal, totals['Interest'], final_total_balance]
-    }
-    st.table(pd.DataFrame(summary_data).style.format({"Amount": "₹ {:.2f}"}))
-
-# --- PDF Export (Visual Match to Template) ---
-class PDF(FPDF):
-    def header(self):
-        pass # We will do a custom header in the generation function
-
-def create_pdf(df, school, name, year, rate, totals, final_bal):
-    pdf = PDF(orientation='L', unit='mm', format='A4') 
+# --- PDF GENERATION (EXACT MATCH) ---
+def create_exact_pdf(df, school, name, year, rate, totals, final_bal):
+    # A4 Landscape: 297mm width. 
+    # Margins 10mm L/R -> 277mm usable width.
+    pdf = FPDF('L', 'mm', 'A4')
+    pdf.set_margins(10, 10, 10)
     pdf.add_page()
     
-    # --- Excel Header Simulation ---
-    pdf.set_font('Arial', 'B', 12)
+    # --- 1. Headers ---
+    pdf.set_font('Arial', 'B', 14)
     pdf.cell(0, 8, f"SCHOOL NAME :- {school}", 0, 1, 'C')
+    
+    pdf.set_font('Arial', 'B', 11)
     pdf.cell(0, 8, f"INTEREST CALCULATION OF PROVIDENT FUND ACCOUNT FOR THE YEAR - {year}-{year+1}", 0, 1, 'C')
     
     pdf.set_font('Arial', 'B', 10)
-    # Name and Rate on same line
-    pdf.cell(150, 8, f"NAME :- {name}", 0, 0, 'L')
+    # Name (Left) and Rate (Right)
+    # Using a borderless cell trick to align them on the same line
+    pdf.cell(140, 8, f"NAME :- {name}", 0, 0, 'L')
     pdf.cell(0, 8, f"RATE OF INTEREST:- {rate} %", 0, 1, 'R')
     pdf.ln(2)
 
-    # --- Table Header ---
-    pdf.set_font('Arial', 'B', 7)
-    
-    # Widths
-    w_mo = 18
-    w_op = 22
-    w_dep = 22
-    w_rem = 20
-    w_int = 15
-    
-    # Top Header Row (Merged cells simulation)
+    # --- 2. Table Column Widths (Total must be <= 277) ---
+    # Width Calculation:
+    # Month(26) + Op(26) + D1(22)+P1(22) + D2(22)+P2(22) + W(22) + Low(26) + Int(20) + Close(26) + Rem(30)
+    # Total = 264mm (Fits comfortably within 277mm)
+    w = {
+        "mo": 26, "op": 26, 
+        "d1": 22, "p1": 22, 
+        "d2": 22, "p2": 22, 
+        "wi": 22, "lo": 26, 
+        "in": 20, "cl": 26, 
+        "re": 30
+    }
+
+    pdf.set_font('Arial', 'B', 8)
+    # Store starting X and Y
     x = pdf.get_x()
     y = pdf.get_y()
     
-    # Standard single height headers
-    pdf.rect(x, y, w_mo, 10)
-    pdf.text(x+2, y+6, "Month")
+    # --- 3. Table Header (Merged Cells Logic) ---
+    # Row Height = 12mm total. 
+    # Single headers take full 12mm. Split headers take 6mm + 6mm.
     
-    pdf.rect(x+w_mo, y, w_op, 10)
-    pdf.text(x+w_mo+2, y+6, "Opening Bal")
+    # 1. Month
+    pdf.rect(x, y, w['mo'], 12)
+    pdf.text(x+2, y+7, "Month")
     
-    # Merged Header: Deposit up to 15th
-    pdf.rect(x+w_mo+w_op, y, w_dep*2, 5)
-    pdf.text(x+w_mo+w_op+8, y+3.5, "Deposit up to 15th day")
-    pdf.rect(x+w_mo+w_op, y+5, w_dep, 5) # Sub col 1
-    pdf.text(x+w_mo+w_op+5, y+8.5, "Deposit")
-    pdf.rect(x+w_mo+w_op+w_dep, y+5, w_dep, 5) # Sub col 2
-    pdf.text(x+w_mo+w_op+w_dep+5, y+8.5, "P.F.L.R")
+    # 2. Opening Balance
+    pdf.rect(x+w['mo'], y, w['op'], 12)
+    pdf.text(x+w['mo']+2, y+7, "Opening Balance")
+    
+    # 3. Group: Deposit up to 15th (Dep + PFLR)
+    grp1_x = x + w['mo'] + w['op']
+    pdf.rect(grp1_x, y, w['d1']+w['p1'], 6) # Top box
+    pdf.text(grp1_x+5, y+4, "Deposit up to 15th day")
+    # Sub-columns
+    pdf.rect(grp1_x, y+6, w['d1'], 6)
+    pdf.text(grp1_x+2, y+10, "Deposit")
+    pdf.rect(grp1_x+w['d1'], y+6, w['p1'], 6)
+    pdf.text(grp1_x+w['d1']+2, y+10, "P.F.L.R")
 
-    # Merged Header: Deposit 16th to last
-    start_16 = x+w_mo+w_op+(w_dep*2)
-    pdf.rect(start_16, y, w_dep*2, 5)
-    pdf.text(start_16+5, y+3.5, "Deposit 16th & last day")
-    pdf.rect(start_16, y+5, w_dep, 5)
-    pdf.text(start_16+5, y+8.5, "Deposit")
-    pdf.rect(start_16+w_dep, y+5, w_dep, 5)
-    pdf.text(start_16+w_dep+5, y+8.5, "P.F.L.R")
+    # 4. Group: Deposit 16th to Last (Dep + PFLR)
+    grp2_x = grp1_x + w['d1'] + w['p1']
+    pdf.rect(grp2_x, y, w['d2']+w['p2'], 6) # Top box
+    pdf.text(grp2_x+2, y+4, "Deposit between 16th & last day")
+    # Sub-columns
+    pdf.rect(grp2_x, y+6, w['d2'], 6)
+    pdf.text(grp2_x+2, y+10, "Deposit")
+    pdf.rect(grp2_x+w['d2'], y+6, w['p2'], 6)
+    pdf.text(grp2_x+w['d2']+2, y+10, "P.F.L.R")
 
-    # Other columns
-    cur_x = start_16 + (w_dep*2)
-    pdf.rect(cur_x, y, w_dep, 10)
-    pdf.text(cur_x+2, y+6, "Withdrawal")
-    
-    cur_x += w_dep
-    pdf.rect(cur_x, y, w_op, 10)
-    pdf.text(cur_x+2, y+6, "Lowest Bal")
-    
-    cur_x += w_op
-    pdf.rect(cur_x, y, w_int, 10)
-    pdf.text(cur_x+1, y+6, "Interest")
-    
-    cur_x += w_int
-    pdf.rect(cur_x, y, w_op, 10)
-    pdf.text(cur_x+2, y+6, "Closing Bal")
+    # 5. Withdrawal
+    curr_x = grp2_x + w['d2'] + w['p2']
+    pdf.rect(curr_x, y, w['wi'], 12)
+    pdf.text(curr_x+2, y+7, "Withdrawal")
 
-    cur_x += w_op
-    pdf.rect(cur_x, y, w_rem, 10)
-    pdf.text(cur_x+2, y+6, "Remarks")
-    
-    pdf.ln(10)
+    # 6. Lowest Balance
+    curr_x += w['wi']
+    pdf.rect(curr_x, y, w['lo'], 12)
+    pdf.text(curr_x+2, y+7, "Lowest Balance")
 
-    # --- Table Rows ---
-    pdf.set_font('Arial', '', 8)
-    
-    def draw_row(row_data, is_bold=False):
-        if is_bold: pdf.set_font('Arial', 'B', 8)
-        else: pdf.set_font('Arial', '', 8)
-        
-        pdf.cell(w_mo, 8, str(row_data[0]), 1)
-        pdf.cell(w_op, 8, str(row_data[1]), 1)
-        pdf.cell(w_dep, 8, str(row_data[2]), 1) # Dep <15
-        pdf.cell(w_dep, 8, str(row_data[3]), 1) # PFLR <15
-        pdf.cell(w_dep, 8, str(row_data[4]), 1) # Dep >15
-        pdf.cell(w_dep, 8, str(row_data[5]), 1) # PFLR >15
-        pdf.cell(w_dep, 8, str(row_data[6]), 1) # With
-        pdf.cell(w_op, 8, str(row_data[7]), 1) # Low
-        pdf.cell(w_int, 8, str(row_data[8]), 1) # Int
-        pdf.cell(w_op, 8, str(row_data[9]), 1) # Close
-        pdf.cell(w_rem, 8, str(row_data[10]), 1) # Rem
-        pdf.ln()
+    # 7. Interest
+    curr_x += w['lo']
+    pdf.rect(curr_x, y, w['in'], 12)
+    pdf.set_xy(curr_x, y) 
+    # Multicell for Interest title to wrap if needed, or manual placement
+    pdf.text(curr_x+1, y+5, "Interest for")
+    pdf.text(curr_x+1, y+8, "the month")
 
-    # Data Rows
+    # 8. Closing Balance
+    curr_x += w['in']
+    pdf.rect(curr_x, y, w['cl'], 12)
+    pdf.text(curr_x+2, y+7, "Closing Balance")
+
+    # 9. Remarks
+    curr_x += w['cl']
+    pdf.rect(curr_x, y, w['re'], 12)
+    pdf.text(curr_x+2, y+7, "Remarks")
+
+    # Move cursor down after header
+    pdf.set_xy(x, y + 12)
+
+    # --- 4. Table Body ---
+    pdf.set_font('Arial', '', 9) # Increased font size slightly for readability
+    row_h = 8
+
     for index, row in df.iterrows():
-        r_d = [
-            row['Month'],
-            f"{row['Opening Balance']:.2f}",
-            f"{row['Dep (<15th)']:.2f}",
-            f"{row['PFLR (<15th)']:.2f}",
-            f"{row['Dep (>15th)']:.2f}",
-            f"{row['PFLR (>15th)']:.2f}",
-            f"{row['Withdrawal']:.2f}",
-            f"{row['Lowest Balance']:.2f}",
-            f"{row['Interest']:.2f}",
-            f"{row['Closing Balance']:.2f}",
-            row['Remarks']
-        ]
-        draw_row(r_d)
+        pdf.cell(w['mo'], row_h, str(row['Month']), 1, 0, 'L')
+        pdf.cell(w['op'], row_h, f"{row['Opening Balance']:.2f}", 1, 0, 'R')
+        pdf.cell(w['d1'], row_h, f"{row['Dep (<15th)']:.2f}", 1, 0, 'R')
+        pdf.cell(w['p1'], row_h, f"{row['PFLR (<15th)']:.2f}", 1, 0, 'R')
+        pdf.cell(w['d2'], row_h, f"{row['Dep (>15th)']:.2f}", 1, 0, 'R')
+        pdf.cell(w['p2'], row_h, f"{row['PFLR (>15th)']:.2f}", 1, 0, 'R')
+        pdf.cell(w['wi'], row_h, f"{row['Withdrawal']:.2f}", 1, 0, 'R')
+        pdf.cell(w['lo'], row_h, f"{row['Lowest Balance']:.2f}", 1, 0, 'R')
+        pdf.cell(w['in'], row_h, f"{row['Interest']:.2f}", 1, 0, 'R')
+        pdf.cell(w['cl'], row_h, f"{row['Closing Balance']:.2f}", 1, 0, 'R')
+        pdf.cell(w['re'], row_h, str(row['Remarks']), 1, 1, 'L')
 
-    # Total Row
-    pdf.set_font('Arial', 'B', 8)
-    pdf.cell(w_mo, 8, "Total", 1)
-    pdf.cell(w_op, 8, "", 1)
-    pdf.cell(w_dep, 8, f"{totals['Dep (<15th)']:.2f}", 1)
-    pdf.cell(w_dep, 8, f"{totals['PFLR (<15th)']:.2f}", 1)
-    pdf.cell(w_dep, 8, f"{totals['Dep (>15th)']:.2f}", 1)
-    pdf.cell(w_dep, 8, f"{totals['PFLR (>15th)']:.2f}", 1)
-    pdf.cell(w_dep, 8, f"{totals['Withdrawal']:.2f}", 1)
-    pdf.cell(w_op, 8, "", 1)
-    pdf.cell(w_int, 8, f"{totals['Interest']:.2f}", 1)
-    pdf.cell(w_op, 8, "", 1)
-    pdf.cell(w_rem, 8, "", 1)
-    pdf.ln(12)
+    # --- 5. Total Row ---
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(w['mo'], row_h, "Total", 1, 0, 'C')
+    pdf.cell(w['op'], row_h, "", 1, 0, 'C')
+    pdf.cell(w['d1'], row_h, f"{totals['Dep (<15th)']:.2f}", 1, 0, 'R')
+    pdf.cell(w['p1'], row_h, f"{totals['PFLR (<15th)']:.2f}", 1, 0, 'R')
+    pdf.cell(w['d2'], row_h, f"{totals['Dep (>15th)']:.2f}", 1, 0, 'R')
+    pdf.cell(w['p2'], row_h, f"{totals['PFLR (>15th)']:.2f}", 1, 0, 'R')
+    pdf.cell(w['wi'], row_h, f"{totals['Withdrawal']:.2f}", 1, 0, 'R')
+    pdf.cell(w['lo'], row_h, "", 1, 0, 'C')
+    pdf.cell(w['in'], row_h, f"{totals['Interest']:.2f}", 1, 0, 'R')
+    pdf.cell(w['cl'], row_h, "", 1, 0, 'C')
+    pdf.cell(w['re'], row_h, "", 1, 1, 'C')
 
-    # --- Footer Summary ---
+    # --- 6. Footer Summary (Bottom Left & Right) ---
+    pdf.ln(5)
+    
+    # Calculate Final Total
+    total_balance = final_bal + totals['Interest']
+
+    # We use cells to align the Summary block
     pdf.set_font('Arial', '', 10)
-    pdf.cell(40, 6, "Principal", 0, 0)
-    pdf.cell(40, 6, f": {final_bal:.2f}", 0, 1)
     
-    pdf.cell(40, 6, "Interest", 0, 0)
-    pdf.cell(40, 6, f": {totals['Interest']:.2f}", 0, 1)
+    # Row 1: Principal
+    pdf.cell(30, 6, "Principal", 0, 0)
+    pdf.cell(30, 6, f"{final_bal:.2f}", 0, 1)
     
+    # Row 2: Interest
+    pdf.cell(30, 6, "Interest", 0, 0)
+    pdf.cell(30, 6, f"{totals['Interest']:.2f}", 0, 1)
+    
+    # Row 3: Total (Bold)
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(40, 6, "TOTAL", 0, 0)
-    pdf.cell(40, 6, f": {(final_bal + totals['Interest']):.2f}", 0, 1)
+    pdf.cell(30, 6, "TOTAL", 0, 0)
+    pdf.cell(30, 6, f"{total_balance:.2f}", 0, 0) # No line break here yet
     
-    pdf.ln(10)
-    pdf.cell(0, 10, "Signature of HM", 0, 1, 'L')
+    # Signature (Right aligned relative to page)
+    # Move cursor to right side for signature
+    pdf.set_x(230) 
+    pdf.cell(40, 6, "Signature of HM", 0, 1, 'C')
 
     return pdf.output(dest='S').encode('latin-1')
 
-pdf_bytes = create_pdf(result_df, school_name, employee_name, start_year, rate_input, totals, final_principal)
-st.download_button("📄 Download PDF Report", pdf_bytes, 'PF_Statement_Official.pdf', 'application/pdf')
+# Button to Generate
+if st.button("Generate PDF Report"):
+    pdf_bytes = create_exact_pdf(result_df, school_name, employee_name, start_year, rate_input, totals, final_principal)
+    st.download_button("📄 Download PDF", pdf_bytes, 'PF_Ledger_Final.pdf', 'application/pdf')
