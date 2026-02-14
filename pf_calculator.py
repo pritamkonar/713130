@@ -9,6 +9,14 @@ st.set_page_config(page_title="PF Interest Calculation", layout="wide")
 st.markdown("""
 <style>
     .stDataFrame {font-size: 14px;}
+    .summary-box {
+        font-size: 18px; 
+        font-weight: bold; 
+        margin-top: 20px; 
+        padding: 15px; 
+        border: 2px solid #f0f2f6; 
+        border-radius: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -153,10 +161,38 @@ total_row = pd.DataFrame([{
 display_df = pd.concat([display_df, total_row], ignore_index=True)
 st.dataframe(display_df, use_container_width=True, hide_index=True)
 
+# --- WEB PAGE SUMMARY SECTION (Added) ---
+final_total_balance = final_principal + totals['Interest']
+
+st.markdown("### Final Summary")
+col_s1, col_s2, col_s3 = st.columns(3)
+
+with col_s1:
+    st.markdown(f"""
+    <div style='background-color:#f9f9f9; padding:10px; border-radius:5px;'>
+        <p style='margin:0; font-weight:bold;'>Principal :</p>
+        <p style='margin:0; font-size:20px;'>₹ {final_principal:,.2f}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_s2:
+    st.markdown(f"""
+    <div style='background-color:#f9f9f9; padding:10px; border-radius:5px;'>
+        <p style='margin:0; font-weight:bold;'>Interest :</p>
+        <p style='margin:0; font-size:20px;'>₹ {totals['Interest']:,.2f}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_s3:
+    st.markdown(f"""
+    <div style='background-color:#e6ffe6; padding:10px; border-radius:5px;'>
+        <p style='margin:0; font-weight:bold;'>TOTAL :</p>
+        <p style='margin:0; font-size:20px;'>₹ {final_total_balance:,.2f}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
 # --- PDF GENERATION (Centered & Fixed Box) ---
 def create_exact_pdf(df, school, name, year, rate, totals, final_bal):
-    # A4 Landscape: 297mm width. 
-    # Margins 10mm L/R -> 277mm usable width.
     pdf = FPDF('L', 'mm', 'A4')
     pdf.set_margins(10, 10, 10)
     pdf.add_page()
@@ -169,49 +205,41 @@ def create_exact_pdf(df, school, name, year, rate, totals, final_bal):
     pdf.cell(0, 8, f"INTEREST CALCULATION OF PROVIDENT FUND ACCOUNT FOR THE YEAR - {year}-{year+1}", 0, 1, 'C')
     
     pdf.set_font('Arial', 'B', 10)
-    # Name and Rate
     pdf.cell(140, 8, f"NAME :- {name}", 0, 0, 'L')
     pdf.cell(0, 8, f"RATE OF INTEREST:- {rate} %", 0, 1, 'R')
     pdf.ln(2)
 
     # --- 2. Table Column Widths ---
-    # Total Usable: 277mm.
-    # Recalculated for better fit
     w = {
         "mo": 26, "op": 26, 
-        "d1": 24, "p1": 24,  # Increased slightly
-        "d2": 24, "p2": 24,  # Increased slightly
+        "d1": 24, "p1": 24, 
+        "d2": 24, "p2": 24, 
         "wi": 22, "lo": 26, 
         "in": 20, "cl": 26, 
         "re": 30
     }
-    # Sum check: 26+26+48+48+22+26+20+26+30 = 272mm (Fits in 277mm)
 
     pdf.set_font('Arial', 'B', 8)
     x = pdf.get_x()
     y = pdf.get_y()
     
     # --- 3. Complex Header Construction ---
-    # Height: 12mm total.
-    
-    # 1. Month
+    # Month
     pdf.rect(x, y, w['mo'], 12)
-    # Centered text in box
     pdf.set_xy(x, y+4) 
     pdf.cell(w['mo'], 4, "Month", 0, 0, 'C')
     
-    # 2. Opening Balance
+    # Opening Balance
     pdf.rect(x+w['mo'], y, w['op'], 12)
     pdf.set_xy(x+w['mo'], y+4)
     pdf.cell(w['op'], 4, "Opening Balance", 0, 0, 'C')
     
-    # 3. Group: Deposit up to 15th
+    # Group: Deposit up to 15th
     grp1_x = x + w['mo'] + w['op']
-    pdf.rect(grp1_x, y, w['d1']+w['p1'], 6) # Top box
+    pdf.rect(grp1_x, y, w['d1']+w['p1'], 6)
     pdf.set_xy(grp1_x, y+1)
     pdf.cell(w['d1']+w['p1'], 4, "Deposit up to 15th day", 0, 0, 'C')
     
-    # Sub-columns
     pdf.rect(grp1_x, y+6, w['d1'], 6)
     pdf.set_xy(grp1_x, y+7)
     pdf.cell(w['d1'], 4, "Deposit", 0, 0, 'C')
@@ -220,17 +248,13 @@ def create_exact_pdf(df, school, name, year, rate, totals, final_bal):
     pdf.set_xy(grp1_x+w['d1'], y+7)
     pdf.cell(w['p1'], 4, "P.F.L.R", 0, 0, 'C')
 
-    # 4. Group: Deposit 16th to Last (Multicell for long text)
+    # Group: Deposit 16th to Last
     grp2_x = grp1_x + w['d1'] + w['p1']
     grp2_w = w['d2'] + w['p2']
-    pdf.rect(grp2_x, y, grp2_w, 6) # Top box
-    
-    # Using MultiCell to handle "Deposit between 16th & last day"
+    pdf.rect(grp2_x, y, grp2_w, 6)
     pdf.set_xy(grp2_x, y) 
-    # Force centering by position logic or MultiCell align
     pdf.multi_cell(grp2_w, 3, "Deposit between\n16th & last day", 0, 'C')
     
-    # Sub-columns
     pdf.rect(grp2_x, y+6, w['d2'], 6)
     pdf.set_xy(grp2_x, y+7)
     pdf.cell(w['d2'], 4, "Deposit", 0, 0, 'C')
@@ -239,46 +263,44 @@ def create_exact_pdf(df, school, name, year, rate, totals, final_bal):
     pdf.set_xy(grp2_x+w['d2'], y+7)
     pdf.cell(w['p2'], 4, "P.F.L.R", 0, 0, 'C')
 
-    # 5. Withdrawal
+    # Withdrawal
     curr_x = grp2_x + w['d2'] + w['p2']
     pdf.rect(curr_x, y, w['wi'], 12)
     pdf.set_xy(curr_x, y+4)
     pdf.cell(w['wi'], 4, "Withdrawal", 0, 0, 'C')
 
-    # 6. Lowest Balance
+    # Lowest Balance
     curr_x += w['wi']
     pdf.rect(curr_x, y, w['lo'], 12)
     pdf.set_xy(curr_x, y+4)
     pdf.cell(w['lo'], 4, "Lowest Balance", 0, 0, 'C')
 
-    # 7. Interest
+    # Interest
     curr_x += w['lo']
     pdf.rect(curr_x, y, w['in'], 12)
     pdf.set_xy(curr_x, y+2)
     pdf.multi_cell(w['in'], 4, "Interest\nfor month", 0, 'C')
 
-    # 8. Closing Balance
+    # Closing Balance
     curr_x += w['in']
     pdf.rect(curr_x, y, w['cl'], 12)
     pdf.set_xy(curr_x, y+4)
     pdf.cell(w['cl'], 4, "Closing Balance", 0, 0, 'C')
 
-    # 9. Remarks
+    # Remarks
     curr_x += w['cl']
     pdf.rect(curr_x, y, w['re'], 12)
     pdf.set_xy(curr_x, y+4)
     pdf.cell(w['re'], 4, "Remarks", 0, 0, 'C')
 
-    # Move cursor down after header
     pdf.set_xy(x, y + 12)
 
     # --- 4. Table Body (ALL CENTER ALIGNED) ---
     pdf.set_font('Arial', '', 9) 
     row_h = 8
 
-    # Helper for cells
     def cell_c(w, txt, border=1):
-        pdf.cell(w, row_h, str(txt), border, 0, 'C') # 'C' is key here
+        pdf.cell(w, row_h, str(txt), border, 0, 'C')
 
     for index, row in df.iterrows():
         cell_c(w['mo'], row['Month'])
@@ -294,7 +316,7 @@ def create_exact_pdf(df, school, name, year, rate, totals, final_bal):
         cell_c(w['re'], row['Remarks'])
         pdf.ln()
 
-    # --- 5. Total Row (CENTER ALIGNED) ---
+    # --- 5. Total Row ---
     pdf.set_font('Arial', 'B', 9)
     cell_c(w['mo'], "Total")
     cell_c(w['op'], "")
