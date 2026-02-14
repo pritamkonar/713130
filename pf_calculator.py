@@ -31,7 +31,7 @@ st.markdown("""
         margin-bottom: 10px;
     }
     
-    /* Button Styling to make them wide and clear */
+    /* Button Styling */
     .stButton button {
         width: 100%;
         font-weight: bold;
@@ -187,7 +187,8 @@ def create_pdf(df, school, name, year, rate, totals, final_bal):
     pdf.set_font('Arial', 'B', 14)
     pdf.cell(0, 8, f"SCHOOL NAME :- {school}", 0, 1, 'C')
     
-    pdf.set_font('Arial', 'B', 11)
+    # FIXED: Reduced font size to 10 to prevent line breaking
+    pdf.set_font('Arial', 'B', 10)
     pdf.cell(0, 8, f"INTEREST CALCULATION OF PROVIDENT FUND ACCOUNT FOR THE YEAR - {year}-{year+1}", 0, 1, 'C')
     
     pdf.set_font('Arial', 'B', 10)
