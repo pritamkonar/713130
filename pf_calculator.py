@@ -40,7 +40,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📄 PF Interest Calculation Sheet")
+st.title("📄 PF Interest Calculation Sheet By Pritam Konar")
 
 # --- Inputs ---
 col_h1, col_h2 = st.columns([2, 1])
@@ -431,3 +431,4 @@ with col_d1:
 excel_bytes = create_excel(result_df, school_name, employee_name, start_year, rate_input, totals, final_principal)
 with col_d2:
     st.download_button("📊 Download Excel", excel_bytes, f"PF_{start_year}.xlsx", 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+
