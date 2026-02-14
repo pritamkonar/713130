@@ -161,7 +161,7 @@ total_row = pd.DataFrame([{
 display_df = pd.concat([display_df, total_row], ignore_index=True)
 st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-# --- WEB PAGE SUMMARY SECTION (Added) ---
+# --- WEB PAGE SUMMARY SECTION ---
 final_total_balance = final_principal + totals['Interest']
 
 st.markdown("### Final Summary")
@@ -351,7 +351,12 @@ def create_exact_pdf(df, school, name, year, rate, totals, final_bal):
 
     return pdf.output(dest='S').encode('latin-1')
 
-# Button to Generate
-if st.button("Generate PDF Report"):
-    pdf_bytes = create_exact_pdf(result_df, school_name, employee_name, start_year, rate_input, totals, final_principal)
-    st.download_button("📄 Download PDF", pdf_bytes, 'PF_Ledger_Final.pdf', 'application/pdf')
+# --- DIRECT DOWNLOAD BUTTON ---
+pdf_bytes = create_exact_pdf(result_df, school_name, employee_name, start_year, rate_input, totals, final_principal)
+
+st.download_button(
+    label="📄 Download PDF Report",
+    data=pdf_bytes,
+    file_name=f"PF_Statement_{start_year}.pdf",
+    mime='application/pdf'
+)
