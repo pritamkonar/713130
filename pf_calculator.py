@@ -184,31 +184,28 @@ def create_pdf(df, school, name, year, rate, totals, final_bal):
     pdf.set_margins(10, 10, 10)
     pdf.add_page()
     
-    pdf.set_font('Arial', 'B', 14)
-    # Using MultiCell for School Name in case it is long, so it doesn't touch the next line
+    # Headers
+    pdf.set_font('Arial', '', 14) # Regular
     pdf.multi_cell(0, 8, f"SCHOOL NAME :- {school}", 0, 'C')
     
-    # Reduced font size to 9 to prevent wrapping/breaking
-    pdf.set_font('Arial', 'B', 9) 
+    pdf.set_font('Arial', '', 9)  # Regular
     pdf.cell(0, 8, f"INTEREST CALCULATION OF PROVIDENT FUND ACCOUNT FOR THE YEAR - {year}-{year+1}", 0, 1, 'C')
     
-    # Added Extra Space (ln(5)) so this line doesn't touch the one above
     pdf.ln(2) 
     
-    pdf.set_font('Arial', 'B', 10)
+    pdf.set_font('Arial', '', 10) # Regular
     pdf.cell(140, 8, f"NAME :- {name}", 0, 0, 'L')
     pdf.cell(0, 8, f"RATE OF INTEREST:- {rate} %", 0, 1, 'R')
     
-    # Extra space before table
     pdf.ln(5) 
 
     w = {"mo": 26, "op": 26, "d1": 24, "p1": 24, "d2": 24, "p2": 24, "wi": 22, "lo": 26, "in": 20, "cl": 26, "re": 30}
 
-    pdf.set_font('Arial', 'B', 8)
+    # Table Headers - Regular Font
+    pdf.set_font('Arial', '', 8) 
     x = pdf.get_x()
     y = pdf.get_y()
     
-    # Headers
     pdf.rect(x, y, w['mo'], 12); pdf.set_xy(x, y+4); pdf.cell(w['mo'], 4, "Month", 0, 0, 'C')
     pdf.rect(x+w['mo'], y, w['op'], 12); pdf.set_xy(x+w['mo'], y+4); pdf.cell(w['op'], 4, "Opening Balance", 0, 0, 'C')
     
@@ -236,7 +233,7 @@ def create_pdf(df, school, name, year, rate, totals, final_bal):
 
     pdf.set_xy(x, y + 12)
 
-    # Body
+    # Body - Regular Font
     pdf.set_font('Arial', '', 9) 
     row_h = 8
     def cell_c(w, txt, border=1): pdf.cell(w, row_h, str(txt), border, 0, 'C')
@@ -255,8 +252,8 @@ def create_pdf(df, school, name, year, rate, totals, final_bal):
         cell_c(w['re'], row['Remarks'])
         pdf.ln()
 
-    # Total Row
-    pdf.set_font('Arial', 'B', 9)
+    # Total Row - Regular Font (Optional: Keep bold or make regular. Making regular as requested)
+    pdf.set_font('Arial', '', 9)
     cell_c(w['mo'], "Total"); cell_c(w['op'], "")
     cell_c(w['d1'], f"{totals['Dep (<15th)']:.2f}")
     cell_c(w['p1'], f"{totals['PFLR (<15th)']:.2f}")
@@ -267,12 +264,14 @@ def create_pdf(df, school, name, year, rate, totals, final_bal):
     cell_c(w['cl'], ""); cell_c(w['re'], "")
     pdf.ln(12)
 
-    # Footer
+    # Footer - Regular Font
     pdf.ln(5)
     pdf.set_font('Arial', '', 10)
     pdf.cell(30, 6, "Principal", 0, 0); pdf.cell(30, 6, f": {final_bal:.2f}", 0, 1)
     pdf.cell(30, 6, "Interest", 0, 0); pdf.cell(30, 6, f": {totals['Interest']:.2f}", 0, 1)
-    pdf.set_font('Arial', 'B', 10)
+    
+    # Total at bottom often looks better bold, but making regular per request
+    pdf.set_font('Arial', '', 10)
     pdf.cell(30, 6, "TOTAL", 0, 0); pdf.cell(30, 6, f": {(final_bal + totals['Interest']):.2f}", 0, 0)
     
     pdf.set_x(230) 
@@ -280,30 +279,30 @@ def create_pdf(df, school, name, year, rate, totals, final_bal):
 
     return pdf.output(dest='S').encode('latin-1')
 
-# --- EXCEL GENERATION (Calibri Font) ---
+# --- EXCEL GENERATION (Calibri Font - Regular) ---
 def create_excel(df, school, name, year, rate, totals, final_bal):
     output = io.BytesIO()
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
     worksheet = workbook.add_worksheet()
 
-    # --- Print Setup for A4 Landscape ---
     worksheet.set_landscape() 
-    worksheet.set_paper(9) # A4
+    worksheet.set_paper(9) 
     worksheet.fit_to_pages(1, 1) 
     worksheet.set_margins(0.25, 0.25, 0.25, 0.25)
 
-    # --- Formats (Calibri) ---
     base_font = 'Calibri'
     
-    title_fmt = workbook.add_format({'font_name': base_font, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 14})
-    subtitle_fmt = workbook.add_format({'font_name': base_font, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 12})
-    header_fmt = workbook.add_format({'font_name': base_font, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'border': 1, 'text_wrap': True, 'font_size': 10})
+    # Removed 'bold': True from most formats
+    title_fmt = workbook.add_format({'font_name': base_font, 'align': 'center', 'valign': 'vcenter', 'font_size': 14})
+    subtitle_fmt = workbook.add_format({'font_name': base_font, 'align': 'center', 'valign': 'vcenter', 'font_size': 12})
+    header_fmt = workbook.add_format({'font_name': base_font, 'align': 'center', 'valign': 'vcenter', 'border': 1, 'text_wrap': True, 'font_size': 10})
     
     text_fmt = workbook.add_format({'font_name': base_font, 'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10})
     money_fmt = workbook.add_format({'font_name': base_font, 'align': 'right', 'valign': 'vcenter', 'border': 1, 'num_format': '#,##0.00', 'font_size': 10})
     
-    total_txt_fmt = workbook.add_format({'font_name': base_font, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'border': 1})
-    total_money_fmt = workbook.add_format({'font_name': base_font, 'bold': True, 'align': 'right', 'valign': 'vcenter', 'border': 1, 'num_format': '#,##0.00'})
+    # Totals Regular
+    total_txt_fmt = workbook.add_format({'font_name': base_font, 'align': 'center', 'valign': 'vcenter', 'border': 1})
+    total_money_fmt = workbook.add_format({'font_name': base_font, 'align': 'right', 'valign': 'vcenter', 'border': 1, 'num_format': '#,##0.00'})
 
     left_fmt = workbook.add_format({'font_name': base_font, 'align': 'left', 'font_size': 10})
     right_fmt = workbook.add_format({'font_name': base_font, 'align': 'right', 'font_size': 10})
@@ -379,8 +378,10 @@ def create_excel(df, school, name, year, rate, totals, final_bal):
     worksheet.write(row, 0, "Interest", summary_label_fmt)
     worksheet.write(row, 2, f": {totals['Interest']:.2f}", summary_val_fmt)
     row += 1
-    bold_fmt = workbook.add_format({'font_name': base_font, 'bold': True, 'font_size': 10})
-    bold_val_fmt = workbook.add_format({'font_name': base_font, 'bold': True, 'font_size': 10, 'align': 'left'})
+    
+    bold_fmt = workbook.add_format({'font_name': base_font, 'font_size': 10}) # Regular
+    bold_val_fmt = workbook.add_format({'font_name': base_font, 'font_size': 10, 'align': 'left'}) # Regular
+    
     worksheet.write(row, 0, "TOTAL", bold_fmt)
     worksheet.write(row, 2, f": {(final_bal + totals['Interest']):.2f}", bold_val_fmt)
 
